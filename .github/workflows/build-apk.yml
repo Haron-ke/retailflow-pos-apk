@@ -1,0 +1,1301 @@
+name: Build RetailFlow POS APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build RetailFlow POS APK
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ---------------------------------------------------------
+      # CHECKOUT
+      # ---------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # ---------------------------------------------------------
+      # JAVA 17
+      # ---------------------------------------------------------
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # ---------------------------------------------------------
+      # ANDROID SDK
+      # ---------------------------------------------------------
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      # ---------------------------------------------------------
+      # GRADLE 8.9
+      # AGP 8.7.3 requires Gradle 8.9
+      # ---------------------------------------------------------
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.9'
+
+      # ---------------------------------------------------------
+      # REMOVE OLD ANDROID PROJECT
+      # ---------------------------------------------------------
+      - name: Remove old Android project
+        shell: bash
+        run: |
+          rm -rf app
+          rm -f build.gradle
+          rm -f settings.gradle
+          rm -f gradle.properties
+          rm -f local.properties
+
+      # ---------------------------------------------------------
+      # CHECK LOGO
+      # ---------------------------------------------------------
+      - name: Check RetailFlow logo
+        shell: bash
+        run: |
+          if [ ! -f "retailflow_pos_icon.png" ]; then
+            echo "ERROR: retailflow_pos_icon.png was not found in the repository root."
+            echo "Upload retailflow_pos_icon.png to the repository root."
+            exit 1
+          fi
+
+          echo "RetailFlow logo found:"
+          ls -lh retailflow_pos_icon.png
+
+      # ---------------------------------------------------------
+      # CREATE PROJECT DIRECTORIES
+      # ---------------------------------------------------------
+      - name: Create Android project
+        shell: bash
+        run: |
+          mkdir -p app/src/main/java/com/retailflow/pos
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+
+          cp retailflow_pos_icon.png \
+            app/src/main/res/drawable/retailflow_pos_icon.png
+
+      # ---------------------------------------------------------
+      # SETTINGS.GRADLE
+      # ---------------------------------------------------------
+      - name: Create settings.gradle
+        shell: bash
+        run: |
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "RetailFlowPOS"
+
+          include(":app")
+          EOF
+
+      # ---------------------------------------------------------
+      # ROOT BUILD.GRADLE
+      # ---------------------------------------------------------
+      - name: Create root build.gradle
+        shell: bash
+        run: |
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+      # ---------------------------------------------------------
+      # GRADLE PROPERTIES
+      # ---------------------------------------------------------
+      - name: Create gradle.properties
+        shell: bash
+        run: |
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+      # ---------------------------------------------------------
+      # APP BUILD.GRADLE
+      # ---------------------------------------------------------
+      - name: Create app build.gradle
+        shell: bash
+        run: |
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.retailflow.pos'
+
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.retailflow.pos'
+                  minSdk 23
+                  targetSdk 35
+
+                  versionCode 1
+                  versionName '1.0'
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      shrinkResources false
+                  }
+
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+          }
+          EOF
+
+      # ---------------------------------------------------------
+      # STRINGS.XML
+      # ---------------------------------------------------------
+      - name: Create strings.xml
+        shell: bash
+        run: |
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">RetailFlow POS</string>
+          </resources>
+          EOF
+
+      # ---------------------------------------------------------
+      # STYLES.XML
+      # IMPORTANT:
+      # NO XML DECLARATION ABOVE THIS LINE
+      # ---------------------------------------------------------
+      - name: Create styles.xml
+        shell: bash
+        run: |
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+
+              <style name="AppTheme"
+                  parent="android:style/Theme.Material.Light.NoActionBar">
+
+                  <item name="android:windowNoTitle">true</item>
+
+                  <item name="android:fontFamily">sans</item>
+
+                  <item name="android:colorAccent">#1976D2</item>
+
+                  <item name="android:windowActionModeOverlay">true</item>
+
+                  <item name="android:windowLightStatusBar">false</item>
+
+                  <item name="android:windowLightNavigationBar">false</item>
+
+                  <item name="android:windowDisablePreview">false</item>
+
+              </style>
+
+          </resources>
+          EOF
+
+      # ---------------------------------------------------------
+      # ANDROID MANIFEST
+      # ---------------------------------------------------------
+      - name: Create AndroidManifest.xml
+        shell: bash
+        run: |
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <uses-permission android:name="android.permission.CAMERA" />
+
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+              <uses-permission
+                  android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="28" />
+
+              <application
+                  android:allowBackup="false"
+                  android:hardwareAccelerated="true"
+                  android:label="@string/app_name"
+                  android:icon="@drawable/retailflow_pos_icon"
+                  android:roundIcon="@drawable/retailflow_pos_icon"
+                  android:supportsRtl="true"
+                  android:theme="@style/AppTheme"
+                  android:usesCleartextTraffic="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="unspecified">
+
+                      <intent-filter>
+
+                          <action
+                              android:name="android.intent.action.MAIN" />
+
+                          <category
+                              android:name="android.intent.category.LAUNCHER" />
+
+                      </intent-filter>
+
+                  </activity>
+
+              </application>
+
+          </manifest>
+          EOF
+
+      # ---------------------------------------------------------
+      # MAIN ACTIVITY
+      # ---------------------------------------------------------
+      - name: Create MainActivity.java
+        shell: bash
+        run: |
+          cat > app/src/main/java/com/retailflow/pos/MainActivity.java <<'EOF'
+          package com.retailflow.pos;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.app.DownloadManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Environment;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.view.View;
+          import android.view.Window;
+          import android.view.WindowManager;
+          import android.webkit.CookieManager;
+          import android.webkit.DownloadListener;
+          import android.webkit.GeolocationPermissions;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.PermissionRequest;
+          import android.webkit.URLUtil;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.ImageView;
+          import android.widget.Toast;
+
+          import java.util.ArrayList;
+
+          public class MainActivity extends Activity {
+
+              private static final String APP_URL =
+                      "https://flying-retail-flow-pos.base44.app";
+
+              private static final int PERMISSION_REQUEST = 700;
+              private static final int FILE_REQUEST = 701;
+
+              private WebView webView;
+
+              private ValueCallback<Uri[]> fileCallback;
+
+              private GeolocationPermissions.Callback locationCallback;
+
+              private String locationOrigin;
+
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+
+                  super.onCreate(savedInstanceState);
+
+                  requestWindowFeatures();
+
+                  getWindow().setStatusBarColor(Color.TRANSPARENT);
+
+                  getWindow().setNavigationBarColor(Color.BLACK);
+
+                  showSplashScreen();
+
+                  requestRequiredPermissions();
+
+                  new Handler(Looper.getMainLooper()).postDelayed(
+                          () -> createWebView(savedInstanceState),
+                          800
+                  );
+              }
+
+
+              private void requestWindowFeatures() {
+
+                  requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+                  getWindow().setFlags(
+                          WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                          WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+                  );
+              }
+
+
+              private void showSplashScreen() {
+
+                  ImageView logo = new ImageView(this);
+
+                  logo.setBackgroundColor(Color.WHITE);
+
+                  logo.setImageResource(
+                          com.retailflow.pos.R.drawable.retailflow_pos_icon
+                  );
+
+                  logo.setScaleType(
+                          ImageView.ScaleType.CENTER_INSIDE
+                  );
+
+                  setContentView(logo);
+
+                  hideSystemBars();
+              }
+
+
+              private void createWebView(Bundle savedInstanceState) {
+
+                  webView = new WebView(this);
+
+                  webView.setBackgroundColor(Color.WHITE);
+
+                  WebSettings settings = webView.getSettings();
+
+                  settings.setJavaScriptEnabled(true);
+
+                  settings.setDomStorageEnabled(true);
+
+                  settings.setDatabaseEnabled(true);
+
+                  settings.setAllowFileAccess(true);
+
+                  settings.setAllowContentAccess(true);
+
+                  settings.setLoadsImagesAutomatically(true);
+
+                  settings.setJavaScriptCanOpenWindowsAutomatically(true);
+
+                  settings.setSupportMultipleWindows(false);
+
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+
+                  settings.setGeolocationEnabled(true);
+
+                  settings.setBuiltInZoomControls(false);
+
+                  settings.setDisplayZoomControls(false);
+
+                  settings.setSupportZoom(false);
+
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+
+                      settings.setMixedContentMode(
+                              WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                      );
+
+                      CookieManager.getInstance()
+                              .setAcceptThirdPartyCookies(
+                                      webView,
+                                      true
+                              );
+                  }
+
+                  CookieManager.getInstance()
+                          .setAcceptCookie(true);
+
+
+                  /*
+                   * JavaScript bridge
+                   */
+
+                  webView.addJavascriptInterface(
+                          new RetailFlowBridge(),
+                          "Android"
+                  );
+
+
+                  /*
+                   * WebView navigation
+                   */
+
+                  webView.setWebViewClient(
+                          new WebViewClient() {
+
+                              @Override
+                              public boolean shouldOverrideUrlLoading(
+                                      WebView view,
+                                      WebResourceRequest request
+                              ) {
+
+                                  return handleSpecialUrl(
+                                          request.getUrl().toString()
+                                  );
+                              }
+
+
+                              @Override
+                              public boolean shouldOverrideUrlLoading(
+                                      WebView view,
+                                      String url
+                              ) {
+
+                                  return handleSpecialUrl(url);
+                              }
+                          }
+                  );
+
+
+                  /*
+                   * Camera / microphone / location /
+                   * file chooser / HTML controls
+                   */
+
+                  webView.setWebChromeClient(
+                          new WebChromeClient() {
+
+                              @Override
+                              public void onPermissionRequest(
+                                      final PermissionRequest request
+                              ) {
+
+                                  runOnUiThread(() -> {
+
+                                      if (hasCameraAndMicrophonePermission()) {
+
+                                          request.grant(
+                                                  request.getResources()
+                                          );
+
+                                      } else {
+
+                                          requestRequiredPermissions();
+                                      }
+                                  });
+                              }
+
+
+                              @Override
+                              public boolean onShowFileChooser(
+                                      WebView view,
+                                      ValueCallback<Uri[]> callback,
+                                      FileChooserParams params
+                              ) {
+
+                                  if (fileCallback != null) {
+
+                                      fileCallback.onReceiveValue(null);
+                                  }
+
+                                  fileCallback = callback;
+
+                                  try {
+
+                                      Intent intent =
+                                              params.createIntent();
+
+                                      startActivityForResult(
+                                              intent,
+                                              FILE_REQUEST
+                                      );
+
+                                  } catch (Exception e) {
+
+                                      fileCallback = null;
+
+                                      callback.onReceiveValue(null);
+                                  }
+
+                                  return true;
+                              }
+
+
+                              @Override
+                              public void onGeolocationPermissionsShowPrompt(
+                                      String origin,
+                                      GeolocationPermissions.Callback callback
+                              ) {
+
+                                  locationOrigin = origin;
+
+                                  locationCallback = callback;
+
+                                  if (hasLocationPermission()) {
+
+                                      callback.invoke(
+                                              origin,
+                                              true,
+                                              false
+                                      );
+
+                                  } else {
+
+                                      requestRequiredPermissions();
+                                  }
+                              }
+
+
+                              @Override
+                              public void onGeolocationPermissionsHidePrompt() {
+
+                                  locationCallback = null;
+
+                                  locationOrigin = null;
+                              }
+                          }
+                  );
+
+
+                  /*
+                   * Downloads
+                   */
+
+                  webView.setDownloadListener(
+                          new DownloadListener() {
+
+                              @Override
+                              public void onDownloadStart(
+                                      String url,
+                                      String userAgent,
+                                      String contentDisposition,
+                                      String mimeType,
+                                      long contentLength
+                              ) {
+
+                                  startDownload(
+                                          url,
+                                          userAgent,
+                                          contentDisposition,
+                                          mimeType
+                                  );
+                              }
+                          }
+                  );
+
+
+                  setContentView(webView);
+
+                  hideSystemBars();
+
+
+                  if (savedInstanceState != null) {
+
+                      webView.restoreState(
+                              savedInstanceState
+                      );
+
+                  } else {
+
+                      webView.loadUrl(APP_URL);
+                  }
+              }
+
+
+              /*
+               * Special Android URLs
+               */
+
+              private boolean handleSpecialUrl(String url) {
+
+                  if (url == null) {
+
+                      return false;
+                  }
+
+
+                  if (url.startsWith(
+                          "retailflow://calculator"
+                  )) {
+
+                      openCalculator();
+
+                      return true;
+                  }
+
+
+                  if (url.startsWith(
+                          "retailflow://settings"
+                  )) {
+
+                      openAndroidSettings();
+
+                      return true;
+                  }
+
+
+                  if (url.startsWith(
+                          "retailflow://app-settings"
+                  )) {
+
+                      openAppSettings();
+
+                      return true;
+                  }
+
+
+                  if (url.startsWith("tel:") ||
+                          url.startsWith("mailto:")) {
+
+                      try {
+
+                          startActivity(
+                                  new Intent(
+                                          Intent.ACTION_VIEW,
+                                          Uri.parse(url)
+                                  )
+                          );
+
+                      } catch (Exception ignored) {
+                      }
+
+                      return true;
+                  }
+
+
+                  return false;
+              }
+
+
+              /*
+               * Downloads
+               */
+
+              private void startDownload(
+                      String url,
+                      String userAgent,
+                      String contentDisposition,
+                      String mimeType
+              ) {
+
+                  try {
+
+                      String fileName =
+                              URLUtil.guessFileName(
+                                      url,
+                                      contentDisposition,
+                                      mimeType
+                              );
+
+
+                      DownloadManager manager =
+                              (DownloadManager)
+                                      getSystemService(
+                                              Context.DOWNLOAD_SERVICE
+                                      );
+
+
+                      DownloadManager.Request request =
+                              new DownloadManager.Request(
+                                      Uri.parse(url)
+                              );
+
+
+                      request.setMimeType(mimeType);
+
+                      request.addRequestHeader(
+                              "User-Agent",
+                              userAgent
+                      );
+
+                      request.setTitle(fileName);
+
+                      request.setDescription(
+                              "RetailFlow POS download"
+                      );
+
+                      request.setNotificationVisibility(
+                              DownloadManager.Request
+                                      .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+                      );
+
+
+                      /*
+                       * Save in the Android Downloads folder.
+                       */
+
+                      request.setDestinationInExternalPublicDir(
+                              Environment.DIRECTORY_DOWNLOADS,
+                              fileName
+                      );
+
+
+                      manager.enqueue(request);
+
+
+                      Toast.makeText(
+                              this,
+                              "Saved to Downloads",
+                              Toast.LENGTH_SHORT
+                      ).show();
+
+                  } catch (Exception e) {
+
+                      Toast.makeText(
+                              this,
+                              "Download failed",
+                              Toast.LENGTH_SHORT
+                      ).show();
+                  }
+              }
+
+
+              /*
+               * Runtime permissions
+               */
+
+              private void requestRequiredPermissions() {
+
+                  if (Build.VERSION.SDK_INT < 23) {
+
+                      return;
+                  }
+
+
+                  ArrayList<String> permissions =
+                          new ArrayList<>();
+
+
+                  if (checkSelfPermission(
+                          Manifest.permission.CAMERA
+                  ) != PackageManager.PERMISSION_GRANTED) {
+
+                      permissions.add(
+                              Manifest.permission.CAMERA
+                      );
+                  }
+
+
+                  if (checkSelfPermission(
+                          Manifest.permission.RECORD_AUDIO
+                  ) != PackageManager.PERMISSION_GRANTED) {
+
+                      permissions.add(
+                              Manifest.permission.RECORD_AUDIO
+                      );
+                  }
+
+
+                  if (checkSelfPermission(
+                          Manifest.permission.ACCESS_FINE_LOCATION
+                  ) != PackageManager.PERMISSION_GRANTED) {
+
+                      permissions.add(
+                              Manifest.permission.ACCESS_FINE_LOCATION
+                      );
+                  }
+
+
+                  if (checkSelfPermission(
+                          Manifest.permission.ACCESS_COARSE_LOCATION
+                  ) != PackageManager.PERMISSION_GRANTED) {
+
+                      permissions.add(
+                              Manifest.permission.ACCESS_COARSE_LOCATION
+                      );
+                  }
+
+
+                  if (Build.VERSION.SDK_INT >= 33) {
+
+                      if (checkSelfPermission(
+                              Manifest.permission.POST_NOTIFICATIONS
+                      ) != PackageManager.PERMISSION_GRANTED) {
+
+                          permissions.add(
+                                  Manifest.permission.POST_NOTIFICATIONS
+                          );
+                      }
+                  }
+
+
+                  if (Build.VERSION.SDK_INT <= 28) {
+
+                      if (checkSelfPermission(
+                              Manifest.permission.WRITE_EXTERNAL_STORAGE
+                      ) != PackageManager.PERMISSION_GRANTED) {
+
+                          permissions.add(
+                                  Manifest.permission.WRITE_EXTERNAL_STORAGE
+                          );
+                      }
+                  }
+
+
+                  if (!permissions.isEmpty()) {
+
+                      requestPermissions(
+                              permissions.toArray(
+                                      new String[0]
+                              ),
+                              PERMISSION_REQUEST
+                      );
+                  }
+              }
+
+
+              private boolean hasCameraAndMicrophonePermission() {
+
+                  if (Build.VERSION.SDK_INT < 23) {
+
+                      return true;
+                  }
+
+
+                  return checkSelfPermission(
+                          Manifest.permission.CAMERA
+                  ) == PackageManager.PERMISSION_GRANTED
+                          &&
+                          checkSelfPermission(
+                                  Manifest.permission.RECORD_AUDIO
+                          ) == PackageManager.PERMISSION_GRANTED;
+              }
+
+
+              private boolean hasLocationPermission() {
+
+                  if (Build.VERSION.SDK_INT < 23) {
+
+                      return true;
+                  }
+
+
+                  return checkSelfPermission(
+                          Manifest.permission.ACCESS_FINE_LOCATION
+                  ) == PackageManager.PERMISSION_GRANTED
+                          ||
+                          checkSelfPermission(
+                                  Manifest.permission.ACCESS_COARSE_LOCATION
+                          ) == PackageManager.PERMISSION_GRANTED;
+              }
+
+
+              @Override
+              public void onRequestPermissionsResult(
+                      int requestCode,
+                      String[] permissions,
+                      int[] grantResults
+              ) {
+
+                  super.onRequestPermissionsResult(
+                          requestCode,
+                          permissions,
+                          grantResults
+                  );
+
+
+                  if (requestCode == PERMISSION_REQUEST) {
+
+                      if (locationCallback != null &&
+                              locationOrigin != null) {
+
+                          boolean allowed =
+                                  hasLocationPermission();
+
+                          locationCallback.invoke(
+                                  locationOrigin,
+                                  allowed,
+                                  false
+                          );
+
+                          locationCallback = null;
+
+                          locationOrigin = null;
+                      }
+
+
+                      if (webView != null) {
+
+                          webView.reload();
+                      }
+                  }
+              }
+
+
+              /*
+               * File picker result
+               */
+
+              @Override
+              protected void onActivityResult(
+                      int requestCode,
+                      int resultCode,
+                      Intent data
+              ) {
+
+                  super.onActivityResult(
+                          requestCode,
+                          resultCode,
+                          data
+                  );
+
+
+                  if (requestCode == FILE_REQUEST &&
+                          fileCallback != null) {
+
+                      Uri[] result = null;
+
+
+                      if (resultCode == RESULT_OK &&
+                              data != null) {
+
+                          if (data.getClipData() != null) {
+
+                              int count =
+                                      data.getClipData()
+                                              .getItemCount();
+
+                              result = new Uri[count];
+
+
+                              for (int i = 0;
+                                   i < count;
+                                   i++) {
+
+                                  result[i] =
+                                          data.getClipData()
+                                                  .getItemAt(i)
+                                                  .getUri();
+                              }
+
+                          } else if (data.getData() != null) {
+
+                              result =
+                                      new Uri[]{
+                                              data.getData()
+                                      };
+                          }
+                      }
+
+
+                      fileCallback.onReceiveValue(
+                              result
+                      );
+
+                      fileCallback = null;
+                  }
+              }
+
+
+              /*
+               * Fullscreen / immersive mode
+               */
+
+              private void hideSystemBars() {
+
+                  getWindow()
+                          .getDecorView()
+                          .setSystemUiVisibility(
+
+                                  View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+
+                                  View.SYSTEM_UI_FLAG_FULLSCREEN |
+
+                                  View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+
+                                  View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+
+                                  View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+
+                                  View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                          );
+              }
+
+
+              /*
+               * Keep fullscreen after returning to app.
+               */
+
+              @Override
+              protected void onResume() {
+
+                  super.onResume();
+
+                  hideSystemBars();
+
+                  if (webView != null) {
+
+                      webView.onResume();
+                  }
+              }
+
+
+              @Override
+              protected void onPause() {
+
+                  if (webView != null) {
+
+                      webView.onPause();
+                  }
+
+                  super.onPause();
+              }
+
+
+              /*
+               * Save WebView state.
+               */
+
+              @Override
+              protected void onSaveInstanceState(
+                      Bundle outState
+              ) {
+
+                  if (webView != null) {
+
+                      webView.saveState(
+                              outState
+                      );
+                  }
+
+                  super.onSaveInstanceState(
+                          outState
+                  );
+              }
+
+
+              /*
+               * Android phone BACK button.
+               */
+
+              @Override
+              public void onBackPressed() {
+
+                  if (webView != null &&
+                          webView.canGoBack()) {
+
+                      webView.goBack();
+
+                  } else {
+
+                      super.onBackPressed();
+                  }
+              }
+
+
+              /*
+               * Calculator
+               */
+
+              private void openCalculator() {
+
+                  try {
+
+                      Intent intent =
+                              new Intent(
+                                      Intent.ACTION_MAIN
+                              );
+
+                      intent.addCategory(
+                              Intent.CATEGORY_APP_CALCULATOR
+                      );
+
+                      startActivity(intent);
+
+                  } catch (Exception e) {
+
+                      Toast.makeText(
+                              this,
+                              "Calculator not available",
+                              Toast.LENGTH_SHORT
+                      ).show();
+                  }
+              }
+
+
+              /*
+               * Android Settings
+               */
+
+              private void openAndroidSettings() {
+
+                  try {
+
+                      startActivity(
+                              new Intent(
+                                      Settings.ACTION_SETTINGS
+                              )
+                      );
+
+                  } catch (Exception ignored) {
+                  }
+              }
+
+
+              /*
+               * RetailFlow application settings
+               */
+
+              private void openAppSettings() {
+
+                  try {
+
+                      Intent intent =
+                              new Intent(
+                                      Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                              );
+
+                      intent.setData(
+                              Uri.parse(
+                                      "package:" +
+                                              getPackageName()
+                              )
+                      );
+
+                      startActivity(intent);
+
+                  } catch (Exception ignored) {
+                  }
+              }
+
+
+              /*
+               * JavaScript bridge.
+               *
+               * Website can call:
+               *
+               * Android.calculator()
+               * Android.settings()
+               * Android.appSettings()
+               * Android.fullscreen()
+               */
+
+              public class RetailFlowBridge {
+
+                  @JavascriptInterface
+                  public void calculator() {
+
+                      runOnUiThread(
+                              () -> openCalculator()
+                      );
+                  }
+
+
+                  @JavascriptInterface
+                  public void settings() {
+
+                      runOnUiThread(
+                              () -> openAndroidSettings()
+                      );
+                  }
+
+
+                  @JavascriptInterface
+                  public void appSettings() {
+
+                      runOnUiThread(
+                              () -> openAppSettings()
+                      );
+                  }
+
+
+                  @JavascriptInterface
+                  public void fullscreen() {
+
+                      runOnUiThread(
+                              () -> hideSystemBars()
+                      );
+                  }
+              }
+          }
+          EOF
+
+      # ---------------------------------------------------------
+      # VERIFY FILES
+      # ---------------------------------------------------------
+      - name: Verify Android project
+        shell: bash
+        run: |
+          echo "Checking project..."
+
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/retailflow/pos/MainActivity.java
+          test -f app/src/main/res/values/styles.xml
+          test -f app/src/main/res/values/strings.xml
+          test -f app/src/main/res/drawable/retailflow_pos_icon.png
+
+          echo "MainActivity:"
+          grep -n "package com.retailflow.pos" \
+            app/src/main/java/com/retailflow/pos/MainActivity.java
+
+          echo "Logo:"
+          ls -lh app/src/main/res/drawable/retailflow_pos_icon.png
+
+          echo "Project verification successful."
+
+      # ---------------------------------------------------------
+      # BUILD
+      # ---------------------------------------------------------
+      - name: Build RetailFlow POS APK
+        run: |
+          gradle clean assembleDebug --no-daemon --stacktrace
+
+      # ---------------------------------------------------------
+      # VERIFY APK
+      # ---------------------------------------------------------
+      - name: Verify APK
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK was not created."
+            exit 1
+          fi
+
+          echo "APK successfully created:"
+          ls -lh "$APK"
+
+      # ---------------------------------------------------------
+      # UPLOAD APK
+      # ---------------------------------------------------------
+      - name: Upload RetailFlow POS APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetailFlow-POS-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
